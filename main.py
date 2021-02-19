@@ -20,21 +20,52 @@ class MapMainWindow(QMainWindow):
 
     def update_image(self):
         binary_image = self.map_api_worker.get_image()
-        self.image_container.setPixmap(QPixmap.fromImage(QImage.fromData(binary_image, "png")))
+        image = QImage.fromData(binary_image, "png")
+        self.image_container.setPixmap(QPixmap.fromImage(image))
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_PageUp:
             delta = self.map_api_worker.get_delta()
-            if delta < 72:
-                delta *= 1.25
+            delta *= 1.25
+            if delta <= 90:
                 self.map_api_worker.set_delta(delta)
                 self.update_image()
         elif event.key() == Qt.Key_PageDown:
             delta = self.map_api_worker.get_delta()
+            delta /= 1.25
             if delta > .0005:
-                delta /= 1.25
                 self.map_api_worker.set_delta(delta)
                 self.update_image()
+        elif event.key() == Qt.Key_Up:
+            latitude = self.map_api_worker.get_latitude()
+            delta = self.map_api_worker.get_delta()
+            latitude += delta
+            self.map_api_worker.set_latitude(min(latitude, 85))
+            self.update_image()
+        elif event.key() == Qt.Key_Down:
+            latitude = self.map_api_worker.get_latitude()
+            delta = self.map_api_worker.get_delta()
+            latitude -= delta
+            self.map_api_worker.set_latitude(max(latitude, -85))
+            self.update_image()
+        elif event.key() == Qt.Key_Left:
+            longitude = self.map_api_worker.get_longitude()
+            delta = self.map_api_worker.get_delta()
+            longitude -= delta
+            longitude += 180
+            longitude %= 360
+            longitude -= 180
+            self.map_api_worker.set_longitude(longitude)
+            self.update_image()
+        elif event.key() == Qt.Key_Right:
+            longitude = self.map_api_worker.get_longitude()
+            delta = self.map_api_worker.get_delta()
+            longitude += delta
+            longitude += 180
+            longitude %= 360
+            longitude -= 180
+            self.map_api_worker.set_longitude(longitude)
+            self.update_image()
 
 
 class MapAPIWorker:
@@ -48,6 +79,18 @@ class MapAPIWorker:
 
     def set_delta(self, value):
         self.delta = value
+
+    def get_longitude(self):
+        return self.longitude
+
+    def set_longitude(self, value):
+        self.longitude = value
+
+    def get_latitude(self):
+        return self.latitude
+
+    def set_latitude(self, value):
+        self.latitude = value
 
     def get_image(self):
         map_api_server = "http://static-maps.yandex.ru/1.x/"
