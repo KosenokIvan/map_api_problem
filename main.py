@@ -16,23 +16,42 @@ class MapMainWindow(QMainWindow):
 
     def initUI(self):
         uic.loadUi("design.ui", self)
+        self.scheme_rb.toggled.connect(self.change_map_type)
+        self.sputnik_rb.toggled.connect(self.change_map_type)
+        self.hybrid_rb.toggled.connect(self.change_map_type)
         self.update_image()
 
     def update_image(self):
         binary_image = self.map_api_worker.get_image()
-        image = QImage.fromData(binary_image, "png")
+        image = QImage.fromData(binary_image,
+                                ("png"
+                                 if self.map_api_worker.get_map_type() == MapAPIWorker.SCHEME
+                                 else "jpg"))
         self.image_container.setPixmap(QPixmap.fromImage(image))
+
+    def change_map_type(self):
+        if self.scheme_rb.isChecked():
+            map_type = MapAPIWorker.SCHEME
+        elif self.sputnik_rb.isChecked():
+            map_type = MapAPIWorker.SPUTNIK
+        elif self.hybrid_rb.isChecked():
+            map_type = MapAPIWorker.HYBRID
+        else:
+            print(f"WHAT: {self.sender()}?")
+            return
+        self.map_api_worker.set_map_type(map_type)
+        self.update_image()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_PageUp:
             delta = self.map_api_worker.get_delta()
-            delta *= 1.25
+            delta *= 1.5
             if delta <= 90:
                 self.map_api_worker.set_delta(delta)
                 self.update_image()
         elif event.key() == Qt.Key_PageDown:
             delta = self.map_api_worker.get_delta()
-            delta /= 1.25
+            delta /= 1.5
             if delta > .0005:
                 self.map_api_worker.set_delta(delta)
                 self.update_image()
@@ -69,10 +88,15 @@ class MapMainWindow(QMainWindow):
 
 
 class MapAPIWorker:
+    SCHEME = "map"
+    SPUTNIK = "sat"
+    HYBRID = "sat,skl"
+
     def __init__(self):
         self.longitude = 139.753882
         self.latitude = 35.6817
         self.delta = .4
+        self.map_type = self.SCHEME
 
     def get_delta(self):
         return self.delta
@@ -92,12 +116,18 @@ class MapAPIWorker:
     def set_latitude(self, value):
         self.latitude = value
 
+    def get_map_type(self):
+        return self.map_type
+
+    def set_map_type(self, value):
+        self.map_type = value
+
     def get_image(self):
         map_api_server = "http://static-maps.yandex.ru/1.x/"
         map_params = {
             "ll": f"{self.longitude},{self.latitude}",
             "spn": f"{self.delta},{self.delta}",
-            "l": "map"
+            "l": self.map_type
         }
         response = requests.get(map_api_server, params=map_params)
         if not response:
