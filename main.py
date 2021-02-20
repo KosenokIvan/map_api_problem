@@ -6,6 +6,7 @@ from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
 from PyQt5 import uic
 from PIL import Image
+from get_toponym_size import get_toponym_size
 
 
 class MapMainWindow(QMainWindow):
@@ -19,6 +20,7 @@ class MapMainWindow(QMainWindow):
         self.scheme_rb.toggled.connect(self.change_map_type)
         self.sputnik_rb.toggled.connect(self.change_map_type)
         self.hybrid_rb.toggled.connect(self.change_map_type)
+        self.find_btn.clicked.connect(self.find_object)
         self.update_image()
 
     def update_image(self):
@@ -41,6 +43,17 @@ class MapMainWindow(QMainWindow):
             return
         self.map_api_worker.set_map_type(map_type)
         self.update_image()
+
+    def find_object(self):
+        toponym_to_find = self.find_input.text()
+        if not toponym_to_find:
+            return
+        try:
+            self.map_api_worker.find_object(toponym_to_find)
+        except IndexError:
+            pass
+        else:
+            self.update_image()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_PageUp:
@@ -97,6 +110,7 @@ class MapAPIWorker:
         self.latitude = 35.6817
         self.delta = .4
         self.map_type = self.SCHEME
+        self.tag_coords = None
 
     def get_delta(self):
         return self.delta
@@ -129,12 +143,35 @@ class MapAPIWorker:
             "spn": f"{self.delta},{self.delta}",
             "l": self.map_type
         }
+        if self.tag_coords is not None:
+            map_params["pt"] = f"{self.tag_coords},comma"
         response = requests.get(map_api_server, params=map_params)
         if not response:
             print("Error")
+            print(response.text)
             print(f"{response.status_code} ({response.reason})")
             exit()
         return response.content
+
+    def find_object(self, toponym_to_find):
+        geocoder_api_server = "http://geocode-maps.yandex.ru/1.x/"
+        geocoder_params = {
+            "apikey": "40d1649f-0493-4b70-98ba-98533de7710b",
+            "geocode": toponym_to_find,
+            "format": "json"}
+        response = requests.get(geocoder_api_server, params=geocoder_params)
+        if not response:
+            print("Error!")
+            print(response.text)
+            print(f"{response.status_code} ({response.reason})")
+            exit()
+        json_response = response.json()
+        toponym = json_response["response"]["GeoObjectCollection"][
+            "featureMember"][0]["GeoObject"]
+        toponym_coordinates = toponym["Point"]["pos"]
+        self.longitude, self.latitude = map(float, toponym_coordinates.split(" "))
+        self.tag_coords = f"{self.longitude},{self.latitude}"
+        self.delta = min(max(get_toponym_size(toponym)), 90)
 
 
 def excepthook(cls, value, traceback):
